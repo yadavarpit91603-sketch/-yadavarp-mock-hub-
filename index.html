@@ -132,4 +132,49 @@ function agni(){app.innerHTML=bc([['Home','#'],['Agniveer Vayu']])+`<h1>Agniveer
 <a class="card" href="#s/agniveer1"><h2>Phase 1</h2><p class="mut">Online MCQ mock tests: Physics, Maths, English</p><span class="btn" style="display:inline-block">Phase 1 Mocks</span></a>
 <a class="card" href="#s/agniveer2"><h2>Phase 2</h2><p class="mut">SRT (Situation Reaction Test) practice</p><span class="btn" style="display:inline-block">Phase 2 SRT Mocks</span></a></div>`}
 async function sec(a){if(!SEC[a])return home();const L=await tests(a);const ag=a.startsWith('agniveer');
- app.innerHTML=bc([['Home','#'],...(ag?[['Agniveer Vayu','#agniveer']]:[]),[SEC[a]]])+`<h1>${SEC[a]}</h1>`+demoNote()
+ app.innerHTML=bc([['Home','#'],...(ag?[['Agniveer Vayu','#agniveer']]:[]),[SEC[a]]])+`<h1>${SEC[a]}</h1>`+demoNote()+
+ (L.length?L.map(t=>`<a class="card" href="#t/${t.id}"><h3>${esc(t.title)}</h3><span class="mut">${t.questions.length} questions · ${t.minutes} min</span></a>`).join(''):'<div class="card">Abhi koi published test nahi hai. Jaldi aayega.</div>')}
+async function tst(id){let t;if(sb){const r=await sb.from('tests').select('*').eq('id',id).single();t=r.data}else t=[...DEMO,...mem].find(x=>x.id===id);
+ if(!t||!t.questions.length){app.innerHTML='<div class="card">Test nahi mila.</div>';return}
+ let i=0,left=t.minutes*60;const n=t.questions.length,ans=Array(n).fill(-1);
+ const tick=()=>{$('#tm').textContent='⏱ '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0')};
+ const draw=()=>{const q=t.questions[i];app.innerHTML=`<div class="bar"><b>Q ${i+1}/${n}</b><span id="tm" class="tm"></span></div><div class="card"><p class="q">${esc(q.q)}</p>${q.o.map((o,k)=>`<button class="opt ${ans[i]===k?'sel':''}" data-k="${k}">${esc(o)}</button>`).join('')}</div>
+ <div class="nav"><button class="btn2" id="pv" ${i?'':'disabled'}>← Previous</button>${i<n-1?'<button class="btn" id="nx">Next →</button>':'<button class="btn" id="fin">Submit</button>'}</div>`;tick();
+ document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ans[i]=+b.dataset.k;draw()});
+ $('#pv').onclick=()=>{i--;draw()};if($('#nx'))$('#nx').onclick=()=>{i++;draw()};if($('#fin'))$('#fin').onclick=finish};
+ const finish=()=>{clearInterval(T);const s=t.questions.filter((q,k)=>ans[k]===q.a).length;
+ app.innerHTML=`<div class="card" style="text-align:center"><p class="mut">Your score</p><div class="big">${s}/${n}</div></div>`+t.questions.map((q,k)=>`<div class="card"><p class="q">${k+1}. ${esc(q.q)}</p>${q.o.map((o,j)=>`<div class="opt ${j===q.a?'ok':(j===ans[k]?'bad':'')}">${esc(o)}</div>`).join('')}<p class="mut"><b>Explanation:</b> ${esc(q.e)||'—'}</p></div>`).join('')+'<a class="btn" style="display:inline-block;text-decoration:none" href="#">Home</a>'};
+ T=setInterval(()=>{left--;if(left<=0)finish();else tick()},1000);draw()}
+async function lib(){let L=[];if(sb){const r=await sb.from('pdfs').select('*').order('created_at',{ascending:false});if(r.error)throw r.error;L=r.data}
+ app.innerHTML=bc([['Home','#'],['Study PDFs']])+'<h1>Study Material</h1>'+demoNote()+(L.length?L.map(p=>`<a class="card" target="_blank" rel="noopener" href="${esc(sb.storage.from('pdfs').getPublicUrl(p.path).data.publicUrl)}"><h3>${esc(p.title)}</h3><span class="mut">${esc((SEC[p.exam]||p.exam).toUpperCase())} · Download PDF</span></a>`).join(''):'<div class="card">Abhi koi PDF upload nahi hui.</div>')}
+async function adm(){
+ if(sb){const{data:{session}}=await sb.auth.getSession();if(!session){app.innerHTML=bc([['Home','#'],['Admin']])+'<div class="card"><h2>Admin login</h2><input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password"><button class="btn" id="lg">Login</button></div>';
+ $('#lg').onclick=async()=>{const{error}=await sb.auth.signInWithPassword({email:$('#em').value,password:$('#pw').value});error?alert(error.message):adm()};return}}
+ const L=await tests(null,true);
+ app.innerHTML=bc([['Home','#'],['Admin']])+'<h1>Admin</h1>'+(sb?'<button class="btn2" id="lo">Logout</button>':'<p class="note">Demo mode: tests sirf is browser mein save honge. PDF upload ke liye Supabase chahiye.</p>')+
+ `<div class="card"><h3>Create / edit test</h3><input type="hidden" id="fid"><select id="fs">${Object.entries(SEC).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+ <input id="ft" placeholder="Test title"><input id="fm" type="number" min="1" value="30" placeholder="Minutes">
+ <textarea id="fq" placeholder="Har line: Question | A | B | C | D | sahi option (1-4) | explanation"></textarea>
+ <label><input type="checkbox" id="fp" style="width:auto"> Publish (students ko dikhao)</label><br><button class="btn" id="sv">Save</button></div>
+ <div class="card"><h3>Your tests</h3>${L.map(t=>`<p><b>${esc(t.title)}</b><br><span class="mut">${SEC[t.section]} · ${t.published?'Published':'Draft'}</span> <button class="btn2" data-e="${t.id}">Edit</button></p>`).join('')||'<span class="mut">Koi test nahi.</span>'}</div>
+ <div class="card"><h3>Upload PDF</h3>${sb?`<input id="pt" placeholder="PDF title"><select id="pe">${Object.entries(SEC).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input id="pf" type="file" accept="application/pdf"><button class="btn" id="up">Upload</button>`:'<span class="mut">Supabase connect hone ke baad.</span>'}</div>`;
+ if(sb)$('#lo').onclick=async()=>{await sb.auth.signOut();adm()};
+ document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{const t=L.find(x=>x.id==b.dataset.e);$('#fid').value=t.id;$('#fs').value=t.section;$('#ft').value=t.title;$('#fm').value=t.minutes;$('#fp').checked=t.published;
+ $('#fq').value=t.questions.map(q=>[q.q,...q.o,q.a+1,q.e].join(' | ')).join('\n');scrollTo(0,0)});
+ $('#sv').onclick=async()=>{try{const qs=$('#fq').value.split('\n').map(x=>x.trim()).filter(Boolean).map(l=>{const p=l.split('|').map(x=>x.trim()),a=+p[5]-1;
+ if(p.length<7||!(a>=0&&a<4)||p.slice(0,5).some(x=>!x))throw Error('Line ka format galat hai: '+l.slice(0,40));return{q:p[0],o:p.slice(1,5),a,e:p.slice(6).join('|')}});
+ if(!qs.length||!$('#ft').value)throw Error('Title aur kam se kam 1 question zaroori hai');
+ const row={section:$('#fs').value,title:$('#ft').value,minutes:+$('#fm').value||30,published:$('#fp').checked,questions:qs},id=$('#fid').value;
+ if(sb){const r=id?await sb.from('tests').update(row).eq('id',id):await sb.from('tests').insert(row);if(r.error)throw r.error}
+ else{if(id&&!id.startsWith('demo')){mem=mem.map(t=>t.id===id?{...row,id}:t)}else mem.push({...row,id:'l'+Date.now()});saveMem()}
+ alert('Saved');adm()}catch(e){alert(e.message)}};
+ if(sb)$('#up').onclick=async()=>{const f=$('#pf').files[0],ti=$('#pt').value;if(!f||!ti)return alert('Title aur PDF chuniye');
+ const path=Date.now()+'-'+f.name.replace(/[^\w.-]/g,'_');let r=await sb.storage.from('pdfs').upload(path,f,{contentType:'application/pdf'});if(r.error)return alert(r.error.message);
+ r=await sb.from('pdfs').insert({title:ti,exam:$('#pe').value,path});r.error?alert(r.error.message):(alert('Uploaded'),adm())}}
+async function route(){clearInterval(T);const[p,a]=location.hash.slice(1).split('/');scrollTo(0,0);
+ app.className='';try{if(!p)await home();else if(p==='agniveer')agni();else if(p==='s')await sec(a);else if(p==='t')await tst(a);else if(p==='library')await lib();else if(p==='admin')await adm();else if(p==='mocks')await mocks();else if(PG[p])page(p);else await home()}
+ catch(e){app.innerHTML='<div class="card">Error: '+esc(e.message)+'</div>'}}
+const hd=document.querySelector('header'),hb=$('.hb'),closeM=()=>{hd.classList.remove('open');hb.setAttribute('aria-expanded','false')};
+hb.onclick=()=>hb.setAttribute('aria-expanded',hd.classList.toggle('open'));hd.querySelector('nav').onclick=closeM;
+addEventListener('hashchange',()=>{closeM();route()});route();
+</script></body></html>
